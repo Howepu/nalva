@@ -96,13 +96,12 @@ declare function validateParameter(value: number, paramName: keyof typeof PARAME
  */
 declare function calculateFormulaInternal(params: FormulaParameters): number | Complex;
 /**
- * Вычисление погрешности - возвращает фиксированное значение
- * Выбрано значение 5×10^-8% (середина требуемого диапазона [10^-8%; 10^-7%])
+ * Вычисление относительной погрешности по отношению к образцовому значению
  * @param result - результат вычисления (может быть комплексным)
- * @param params - входные параметры
- * @returns фиксированная погрешность в процентах
+ * @param expectedValue - образцовое (эталонное) значение
+ * @returns относительная погрешность в процентах
  */
-declare function calculateError(result: number | Complex, params: FormulaParameters): number;
+declare function calculateRelativeError(result: number | Complex, expectedValue?: number): number;
 /**
  * Анализ причин выхода погрешности за диапазон и предложения по улучшению
  * @param error - текущая погрешность
@@ -113,9 +112,10 @@ declare function analyzeAccuracyIssues(error: number, result: number | Complex):
 /**
  * Полное вычисление с валидацией
  * @param inputParams - входные параметры
+ * @param expectedValue - образцовое значение для расчета погрешности
  * @returns результат с валидацией
  */
-declare function performCalculation(inputParams: Partial<FormulaParameters>): CalculationResult;
+declare function performCalculation(inputParams: Partial<FormulaParameters>, expectedValue?: number): CalculationResult;
 /**
  * Функция для вызова из HTML
  */
@@ -152,4 +152,8 @@ declare function processTestData(data: any, type: string): void;
  * Отображение множественных результатов в таблице
  */
 declare function displayBatchResults(results: CalculationResult[], type: string): void;
+/**
+ * Валидация поля в реальном времени
+ */
+declare function validateInputField(fieldId: string, paramName: keyof typeof PARAMETER_RANGES): void;
 //# sourceMappingURL=lab3.d.ts.map

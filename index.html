@@ -127,6 +127,7 @@
             Формула: ((a + d<sup>0.5</sup>)<sup>3</sup> + (x<sup>8</sup>)/(4×z) - <sup>4</sup>√(c×d + √(18×y))) / (2×a×x + 1.12×z)
         </div>
         
+        
         <h2>Таблица параметров</h2>
         <table id="parametersTable">
             <thead>
@@ -174,7 +175,8 @@
             <h2>Ввод данных</h2>
             <div class="input-group">
                 <label for="inputA">a:</label>
-                <input type="number" id="inputA" step="0.01" min="0.8" max="1.17" placeholder="0.8 - 1.17">
+                <input type="number" id="inputA" step="0.01" min="0.8" max="1.17" placeholder="0.8 - 1.17" 
+                       onblur="validateInputField('inputA', 'a')" oninput="validateInputField('inputA', 'a')">
                 <span id="errorA" class="error"></span>
             </div>
             <div class="input-group">
@@ -184,7 +186,8 @@
             </div>
             <div class="input-group">
                 <label for="inputD">d:</label>
-                <input type="number" id="inputD" step="0.01" min="2" max="5.13" placeholder="2 - 5.13">
+                <input type="number" id="inputD" step="0.01" min="2" max="5.13" placeholder="2 - 5.13"
+                       onblur="validateInputField('inputD', 'd')" oninput="validateInputField('inputD', 'd')">
                 <span id="errorD" class="error"></span>
             </div>
             <div class="input-group">
@@ -194,15 +197,22 @@
             </div>
             <div class="input-group">
                 <label for="inputY">y:</label>
-                <input type="number" id="inputY" step="0.5" min="-1" max="1" placeholder="-1 - 1">
+                <input type="number" id="inputY" step="0.5" min="-1" max="1" placeholder="-1 - 1"
+                       onblur="validateInputField('inputY', 'y')" oninput="validateInputField('inputY', 'y')">
                 <span id="errorY" class="error"></span>
             </div>
             <div class="input-group">
                 <label for="inputZ">z:</label>
-                <input type="number" id="inputZ" step="12" min="12" max="144" placeholder="12 - 144">
+                <input type="number" id="inputZ" step="12" min="12" max="144" placeholder="12 - 144"
+                       onblur="validateInputField('inputZ', 'z')" oninput="validateInputField('inputZ', 'z')">
                 <span id="errorZ" class="error"></span>
             </div>
             
+            <div class="input-group" style="border-top: 2px solid #ddd; padding-top: 15px; margin-top: 15px;">
+                <label for="expectedValue">Образцовое значение:</label>
+                <input type="number" id="expectedValue" step="any" placeholder="Введите эталонное значение для сравнения">
+                <span class="success">Для расчета относительной погрешности</span>
+            </div>
             
             <button onclick="calculateFormulaFromHTML()">Вычислить</button>
             <button onclick="clearInputs()">Очистить</button>
@@ -225,7 +235,7 @@
                         <th>Аргумент</th>
                         <th>Введённое значение</th>
                         <th>Результат вычисления</th>
-                        <th>Погрешность вычисления (%)</th>
+                        <th>Относительная погрешность</th>
                     </tr>
                 </thead>
                 <tbody id="resultsBody">

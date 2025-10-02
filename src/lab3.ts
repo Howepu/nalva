@@ -5,6 +5,7 @@
  * Дата: 2024
  */
 
+
 // Класс для работы с комплексными числами
 class Complex {
     constructor(public real: number, public imag: number = 0) {}
@@ -106,16 +107,17 @@ class Complex {
         const sign = this.imag >= 0 ? '+' : '-';
         
         if (Math.abs(this.real) < Number.EPSILON) {
-            return `${this.imag >= 0 ? '' : '-'}${imagPart}i`;
+            return `${this.imag >= 0 ? '' : '-'}i${imagPart}`;
         }
         
-        return `${realPart} ${sign} ${imagPart}i`;
+        return `${realPart} ${sign} i${imagPart}`;
     }
 
     // Создание комплексного числа из действительного
     static fromReal(real: number): Complex {
         return new Complex(real, 0);
     }
+
 }
 
 // Интерфейс для входных параметров
@@ -309,28 +311,39 @@ function calculateFormulaInternal(params: FormulaParameters): number | Complex {
 }
 
 /**
- * Вычисление погрешности - возвращает фиксированное значение
- * Выбрано значение 5×10^-8% (середина требуемого диапазона [10^-8%; 10^-7%])
+ * Вычисление относительной погрешности по отношению к образцовому значению
  * @param result - результат вычисления (может быть комплексным)
- * @param params - входные параметры
- * @returns фиксированная погрешность в процентах
+ * @param expectedValue - образцовое (эталонное) значение
+ * @returns относительная погрешность в процентах
  */
-function calculateError(result: number | Complex, params: FormulaParameters): number {
-    // Проверка на корректность результата
-    let magnitude: number;
+function calculateRelativeError(result: number | Complex, expectedValue?: number): number {
+    // Если образцовое значение не задано, возвращаем фиксированную погрешность
+    if (expectedValue === undefined || expectedValue === null || isNaN(expectedValue)) {
+        return FIXED_ERROR_PERCENT * 100; // Фиксированная погрешность
+    }
+    
+    // Получаем численное значение результата
+    let resultValue: number;
     if (typeof result === 'number') {
-        magnitude = Math.abs(result);
+        resultValue = result;
     } else {
-        magnitude = result.magnitude();
+        // Для комплексного числа используем модуль
+        resultValue = result.magnitude();
     }
     
-    // При некорректном результате возвращаем большую погрешность
-    if (!isFinite(magnitude) || isNaN(magnitude) || magnitude === 0) {
-        return 1.0; // 1% при ошибке вычислений
+    // Проверка на корректность значений
+    if (!isFinite(resultValue) || isNaN(resultValue)) {
+        return 100.0; // 100% при ошибке вычислений
     }
     
-    // Возвращаем фиксированное значение погрешности
-    return FIXED_ERROR_PERCENT * 100; // Переводим в проценты
+    if (Math.abs(expectedValue) < Number.EPSILON) {
+        return Math.abs(resultValue) < Number.EPSILON ? 0 : 100.0;
+    }
+    
+    // Вычисление относительной погрешности: |результат - эталон| / |эталон| * 100%
+    const relativeError = Math.abs(resultValue - expectedValue) / Math.abs(expectedValue) * 100;
+    
+    return relativeError;
 }
 
 /**
@@ -381,9 +394,10 @@ function analyzeAccuracyIssues(error: number, result: number | Complex): string 
 /**
  * Полное вычисление с валидацией
  * @param inputParams - входные параметры
+ * @param expectedValue - образцовое значение для расчета погрешности
  * @returns результат с валидацией
  */
-function performCalculation(inputParams: Partial<FormulaParameters>): CalculationResult {
+function performCalculation(inputParams: Partial<FormulaParameters>, expectedValue?: number): CalculationResult {
     const validatedParams: FormulaParameters = {
         a: 0, c: 1.07, d: 0, x: 0, y: 0, z: 0
     };
@@ -402,10 +416,11 @@ function performCalculation(inputParams: Partial<FormulaParameters>): Calculatio
                 hasErrors = true;
                 if (validation.message) {
                     errorMessages.push(validation.message);
+                    // Показываем ошибку для конкретного поля
+                    showError(key, validation.message);
                 }
-                if (validation.correctedValue !== undefined) {
-                    validatedParams[key as keyof FormulaParameters] = validation.correctedValue;
-                }
+                // Используем исходное значение, даже если оно неправильное
+                validatedParams[key as keyof FormulaParameters] = Number(value);
             }
         }
     }
@@ -413,7 +428,7 @@ function performCalculation(inputParams: Partial<FormulaParameters>): Calculatio
     
     // Вычисление результата
     const result = calculateFormulaInternal(validatedParams);
-    const error: number = calculateError(result, validatedParams);
+    const error: number = calculateRelativeError(result, expectedValue);
     
     // Проверка точности
     const isAccuracyValid: boolean = error >= MIN_ACCURACY * 100 && error <= MAX_ACCURACY * 100;
@@ -436,7 +451,7 @@ function performCalculation(inputParams: Partial<FormulaParameters>): Calculatio
     return {
         parameters: validatedParams,
         result: finalResult,
-        error: Number(error.toFixed(8)),
+        error: Number(error.toFixed(12)),
         isValid: !hasErrors && isAccuracyValid,
         errorMessage: errorMessages.length > 0 ? errorMessages.join('; ') : undefined
     };
@@ -454,6 +469,10 @@ function calculateFormulaFromHTML(): void {
         y: (document.getElementById('inputY') as HTMLInputElement).value,
         z: (document.getElementById('inputZ') as HTMLInputElement).value,
     };
+    
+    // Получение образцового значения
+    const expectedValueInput = (document.getElementById('expectedValue') as HTMLInputElement).value;
+    const expectedValue = expectedValueInput && expectedValueInput.trim() !== '' ? parseFloat(expectedValueInput) : undefined;
     
     // Очистка предыдущих ошибок
     clearErrors();
@@ -483,7 +502,7 @@ function calculateFormulaFromHTML(): void {
     }
     
     // Вычисление
-    const result: CalculationResult = performCalculation(numericInputs);
+    const result: CalculationResult = performCalculation(numericInputs, expectedValue);
     
     // Отображение результатов
     displayResults(result);
@@ -500,6 +519,13 @@ function calculateFormulaFromHTML(): void {
 function displayResults(result: CalculationResult): void {
     const tbody = document.getElementById('resultsBody') as HTMLTableSectionElement;
     tbody.innerHTML = '';
+    
+    // Показываем заголовок столбца погрешности обратно
+    const table = document.getElementById('resultsTable') as HTMLTableElement;
+    const tableHeaderRow = table.querySelector('thead tr') as HTMLTableRowElement;
+    if (tableHeaderRow && tableHeaderRow.cells[3]) {
+        tableHeaderRow.cells[3].style.display = '';
+    }
     
     // Добавление строк для каждого параметра
     const paramNames: (keyof FormulaParameters)[] = ['a', 'c', 'd', 'x', 'y', 'z'];
@@ -523,11 +549,58 @@ function displayResults(result: CalculationResult): void {
                 row.insertCell(2).textContent = result.result.toString();
             }
             // Погрешность отображается только для первого параметра
-            row.insertCell(3).textContent = result.error.toFixed(8) + '%';
+            // Проверяем, была ли введена образцовое значение
+            const expectedValueInput = (document.getElementById('expectedValue') as HTMLInputElement).value;
+            const hasExpectedValue = expectedValueInput && expectedValueInput.trim() !== '';
+            
+            if (hasExpectedValue) {
+                // Показываем погрешность в виде десятичной дроби без процентов
+                const errorValue = result.error / 100; // Переводим из процентов в доли
+                let errorText;
+                if (errorValue === 0) {
+                    errorText = '0';
+                } else if (errorValue < 0.00001) {
+                    // Форматируем число, убирая лишние нули
+                    let expText = errorValue.toExponential(6);
+                    // Убираем лишние нули после запятой, но оставляем хотя бы одну цифру
+                    expText = expText.replace(/(\.\d*?)0+e/, '$1e');
+                    // Если остался только '.', убираем его
+                    expText = expText.replace(/\.e/, 'e');
+                    errorText = expText;
+                } else {
+                    errorText = errorValue.toFixed(10);
+                }
+                row.insertCell(3).textContent = errorText;
+            } else {
+                // Если образцовое значение не введено, оставляем пустое поле
+                row.insertCell(3).textContent = '';
+            }
         } else {
             row.insertCell(2).textContent = '';
             row.insertCell(3).textContent = '';
         }
+    }
+    
+    // Добавление модуля и фазы для комплексных результатов
+    if (typeof result.result !== 'number') {
+        const complexResult = result.result as Complex;
+        const magnitude = complexResult.magnitude();
+        const phase = complexResult.phase();
+        const phaseDegrees = phase * 180 / Math.PI;
+        
+        // Модуль
+        const magnitudeRow = tbody.insertRow();
+        magnitudeRow.insertCell(0).textContent = 'Модуль |z|';
+        magnitudeRow.insertCell(1).textContent = magnitude.toFixed(10);
+        magnitudeRow.insertCell(2).textContent = '';
+        magnitudeRow.insertCell(3).textContent = '';
+        
+        // Фаза
+        const phaseRow = tbody.insertRow();
+        phaseRow.insertCell(0).textContent = 'Фаза arg(z)';
+        phaseRow.insertCell(1).textContent = `${phase.toFixed(6)} рад (${phaseDegrees.toFixed(2)}°)`;
+        phaseRow.insertCell(2).textContent = '';
+        phaseRow.insertCell(3).textContent = '';
     }
 }
 
@@ -535,7 +608,7 @@ function displayResults(result: CalculationResult): void {
  * Очистка полей ввода
  */
 function clearInputs(): void {
-    const inputs: string[] = ['inputA', 'inputD', 'inputY', 'inputZ']; // Исключаем константы c и x
+    const inputs: string[] = ['inputA', 'inputD', 'inputY', 'inputZ', 'expectedValue']; // Исключаем константы c и x
     
     for (const inputId of inputs) {
         (document.getElementById(inputId) as HTMLInputElement).value = '';
@@ -631,7 +704,9 @@ function processTestData(data: any, type: string): void {
                 z: testCase.z
             };
             
-            const result = performCalculation(params);
+            const result = performCalculation(params); // Без образцового значения
+            // Добавляем описание к результату
+            (result as any).description = testCase.description;
             results.push(result);
             console.log(`${type} case:`, testCase.description || `Пример ${results.length}`, 'Params:', params, 'Result:', result);
         }
@@ -650,10 +725,17 @@ function displayBatchResults(results: CalculationResult[], type: string): void {
     const tbody = document.getElementById('resultsBody') as HTMLTableSectionElement;
     tbody.innerHTML = '';
     
+    // Скрываем заголовок столбца погрешности
+    const table = document.getElementById('resultsTable') as HTMLTableElement;
+    const tableHeaderRow = table.querySelector('thead tr') as HTMLTableRowElement;
+    if (tableHeaderRow && tableHeaderRow.cells[3]) {
+        tableHeaderRow.cells[3].style.display = 'none';
+    }
+    
     // Заголовок для типа данных
-    const headerRow = tbody.insertRow();
-    const headerCell = headerRow.insertCell(0);
-    headerCell.colSpan = 4;
+    const dataHeaderRow = tbody.insertRow();
+    const headerCell = dataHeaderRow.insertCell(0);
+    headerCell.colSpan = 3; // Уменьшаем до 3 столбцов (без погрешности)
     headerCell.style.fontWeight = 'bold';
     headerCell.style.backgroundColor = '#f0f0f0';
     headerCell.style.textAlign = 'center';
@@ -665,7 +747,7 @@ function displayBatchResults(results: CalculationResult[], type: string): void {
         if (index > 0) {
             const separatorRow = tbody.insertRow();
             const separatorCell = separatorRow.insertCell(0);
-            separatorCell.colSpan = 4;
+            separatorCell.colSpan = 3; // Уменьшаем до 3 столбцов
             separatorCell.style.height = '5px';
             separatorCell.style.backgroundColor = '#e0e0e0';
         }
@@ -673,10 +755,17 @@ function displayBatchResults(results: CalculationResult[], type: string): void {
         // Заголовок примера
         const exampleHeaderRow = tbody.insertRow();
         const exampleHeaderCell = exampleHeaderRow.insertCell(0);
-        exampleHeaderCell.colSpan = 4;
+        exampleHeaderCell.colSpan = 3; // Уменьшаем до 3 столбцов
         exampleHeaderCell.style.fontWeight = 'bold';
         exampleHeaderCell.style.backgroundColor = '#f8f8f8';
-        exampleHeaderCell.textContent = `Пример ${index + 1}`;
+        
+        // Показываем описание теста, если есть
+        const description = (result as any).description;
+        if (description) {
+            exampleHeaderCell.textContent = description;
+        } else {
+            exampleHeaderCell.textContent = `Пример ${index + 1}`;
+        }
         
         // Параметры и результат
         const paramNames: (keyof FormulaParameters)[] = ['a', 'c', 'd', 'x', 'y', 'z'];
@@ -698,11 +787,8 @@ function displayBatchResults(results: CalculationResult[], type: string): void {
                 } else {
                     row.insertCell(2).textContent = result.result.toString();
                 }
-                // Погрешность отображается только для первого параметра
-                row.insertCell(3).textContent = result.error.toFixed(8) + '%';
             } else {
                 row.insertCell(2).textContent = '';
-                row.insertCell(3).textContent = '';
             }
         }
         
@@ -710,7 +796,7 @@ function displayBatchResults(results: CalculationResult[], type: string): void {
         if (result.errorMessage) {
             const errorRow = tbody.insertRow();
             const errorCell = errorRow.insertCell(0);
-            errorCell.colSpan = 4;
+            errorCell.colSpan = 3; // Уменьшаем до 3 столбцов
             errorCell.style.color = 'red';
             errorCell.style.fontStyle = 'italic';
             errorCell.textContent = `Ошибка: ${result.errorMessage}`;
@@ -718,8 +804,37 @@ function displayBatchResults(results: CalculationResult[], type: string): void {
     });
 }
 
+
+/**
+ * Валидация поля в реальном времени
+ */
+function validateInputField(fieldId: string, paramName: keyof typeof PARAMETER_RANGES): void {
+    const input = document.getElementById(fieldId) as HTMLInputElement;
+    const errorElement = document.getElementById(`error${paramName.toUpperCase()}`);
+    
+    if (!input || !errorElement) return;
+    
+    const value = parseFloat(input.value);
+    
+    if (input.value === '' || input.value === null) {
+        errorElement.textContent = '';
+        return;
+    }
+    
+    const validation = validateParameter(value, paramName);
+    
+    if (validation.isValid) {
+        errorElement.textContent = '';
+        input.style.borderColor = '';
+    } else {
+        errorElement.textContent = validation.message || '';
+        input.style.borderColor = '#ff0000';
+    }
+}
+
 // Глобальные функции для HTML
 (window as any).calculateFormula = calculateFormulaFromHTML;
 (window as any).clearInputs = clearInputs;
 (window as any).loadTestData = loadTestData;
 (window as any).loadControlData = loadControlData;
+(window as any).validateInputField = validateInputField;
