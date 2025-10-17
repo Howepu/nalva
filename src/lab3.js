@@ -246,30 +246,38 @@ function calculateFormulaInternal(params) {
  * @returns относительная погрешность в процентах
  */
 function calculateRelativeError(result, expectedValue) {
+    const epsilon = 5e-8; // Допуск для числового сравнения
+
     // Если образцовое значение не задано, возвращаем фиксированную погрешность
     if (expectedValue === undefined || expectedValue === null || isNaN(expectedValue)) {
         return FIXED_ERROR_PERCENT * 100; // Фиксированная погрешность
     }
-    // Получаем численное значение результата
+
     let resultValue;
     if (typeof result === 'number') {
         resultValue = result;
+    } else {
+        resultValue = result.magnitude(); // для комплексных чисел
     }
-    else {
-        // Для комплексного числа используем модуль
-        resultValue = result.magnitude();
-    }
-    // Проверка на корректность значений
+
     if (!isFinite(resultValue) || isNaN(resultValue)) {
-        return 100.0; // 100% при ошибке вычислений
+        return 100.0; // ошибка вычисления
     }
+
     if (Math.abs(expectedValue) < Number.EPSILON) {
         return Math.abs(resultValue) < Number.EPSILON ? 0 : 100.0;
     }
-    // Вычисление относительной погрешности: |результат - эталон| / |эталон| * 100%
-    const relativeError = Math.abs(resultValue - expectedValue) / Math.abs(expectedValue) * 100;
+
+    // Новый блок: если разница меньше epsilon, считаем, что она равна нулю
+    const diff = Math.abs(resultValue - expectedValue);
+    if (diff < epsilon) {
+        return 0.0;
+    }
+
+    const relativeError = diff / Math.abs(expectedValue) * 100;
     return relativeError;
 }
+
 /**
  * Анализ причин выхода погрешности за диапазон и предложения по улучшению
  * @param error - текущая погрешность
